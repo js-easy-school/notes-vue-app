@@ -3,41 +3,32 @@ import { ref, computed, watch, onMounted } from "vue";
 import NoteList from "./components/NoteList.vue";
 import NoteEditor from "./components/NoteEditor.vue";
 import { getTelegramWebApp, getTelegramUser } from "./telegram";
+import { getNotes, createNote, updateNote, deleteNote } from "./api";
 
-function loadNotes() {
-  const raw = localStorage.getItem("notes-vue-app");
-  if (!raw) return [];
-  try {
-    return JSON.parse(raw).map((n) => ({
-      ...n,
-      createdAt: new Date(n.createdAt),
-      updatedAt: new Date(n.updatedAt),
-    }));
-  } catch {
-    return [];
-  }
-}
-function saveNotes(notes) {
-  localStorage.setItem("notes-vue-app", JSON.stringify(notes));
-}
-
-const notes = ref(loadNotes());
-const selectedNoteId = ref(notes.value[0]?.id || null);
+const notes = ref([]);
+const selectedNoteId = ref(null);
 const searchQuery = ref("");
+const isLoading = ref(false);
 
 const isTelegram = ref(false);
 const tgUser = ref(null);
 
-onMounted(() => {
+async function loadNotesAndSelectFirst() {
+  isLoading.value = true;
+  notes.value = await getNotes();
+  selectedNoteId.value = notes.value[0]?.id || null;
+  isLoading.value = false;
+}
+
+onMounted(async () => {
   const tg = getTelegramWebApp();
   if (tg) {
     isTelegram.value = true;
     tg.expand();
     tgUser.value = getTelegramUser();
   }
+  await loadNotesAndSelectFirst();
 });
-
-watch(notes, (val) => saveNotes(val), { deep: true });
 
 const filteredNotes = computed(() =>
   notes.value.filter(
@@ -51,32 +42,26 @@ const selectedNote = computed(() =>
   notes.value.find((note) => note.id === selectedNoteId.value)
 );
 
-function handleNoteCreate() {
-  const newNote = {
-    id: crypto.randomUUID(),
-    title: "Новая заметка",
-    content: "",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
-  notes.value = [newNote, ...notes.value];
+async function handleNoteCreate() {
+  const newNote = await createNote("Новая заметка", "");
+  await loadNotesAndSelectFirst();
   selectedNoteId.value = newNote.id;
 }
-function handleNoteSelect(noteId) {
+async function handleNoteSelect(noteId) {
   selectedNoteId.value = noteId;
 }
-function handleNoteDelete(noteId) {
-  notes.value = notes.value.filter((note) => note.id !== noteId);
-  if (selectedNoteId.value === noteId) {
-    selectedNoteId.value = notes.value[0]?.id || null;
-  }
+async function handleNoteDelete(noteId) {
+  await deleteNote(noteId);
+  await loadNotesAndSelectFirst();
 }
-function handleNoteUpdate({ title, content }) {
-  notes.value = notes.value.map((note) =>
-    note.id === selectedNoteId.value
-      ? { ...note, title, content, updatedAt: new Date() }
-      : note
-  );
+async function handleNoteUpdate({ title, content }) {
+  if (!selectedNoteId.value) return;
+  await updateNote(selectedNoteId.value, title, content);
+  await loadNotesAndSelectFirst();
+  selectedNoteId.value =
+    notes.value.find((n) => n.id === selectedNoteId.value)?.id ||
+    notes.value[0]?.id ||
+    null;
 }
 </script>
 
