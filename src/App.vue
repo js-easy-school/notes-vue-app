@@ -1,7 +1,8 @@
 <script setup>
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, onMounted } from "vue";
 import NoteList from "./components/NoteList.vue";
 import NoteEditor from "./components/NoteEditor.vue";
+import { getTelegramWebApp, getTelegramUser } from "./telegram";
 
 function loadNotes() {
   const raw = localStorage.getItem("notes-vue-app");
@@ -23,6 +24,18 @@ function saveNotes(notes) {
 const notes = ref(loadNotes());
 const selectedNoteId = ref(notes.value[0]?.id || null);
 const searchQuery = ref("");
+
+const isTelegram = ref(false);
+const tgUser = ref(null);
+
+onMounted(() => {
+  const tg = getTelegramWebApp();
+  if (tg) {
+    isTelegram.value = true;
+    tg.expand();
+    tgUser.value = getTelegramUser();
+  }
+});
 
 watch(notes, (val) => saveNotes(val), { deep: true });
 
@@ -69,6 +82,14 @@ function handleNoteUpdate({ title, content }) {
 
 <template>
   <div class="app">
+    <div v-if="isTelegram" class="tg-bar">
+      <span v-if="tgUser" class="tg-user"
+        >👤 {{ tgUser.first_name }} {{ tgUser.last_name }}</span
+      >
+      <button class="tg-close" @click="getTelegramWebApp()?.close()">
+        Закрыть
+      </button>
+    </div>
     <header class="header">
       <h1>📝 Заметки</h1>
       <div class="search-container">
@@ -210,6 +231,32 @@ function handleNoteUpdate({ title, content }) {
   font-size: 3rem;
   margin-bottom: 1rem;
   opacity: 0.7;
+}
+.tg-bar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 1.5rem;
+  background: #23242b;
+  padding: 0.5rem 1.5rem 0.5rem 1.5rem;
+  border-bottom: 1px solid #23242b;
+}
+.tg-user {
+  color: #aaa;
+  font-size: 0.95rem;
+}
+.tg-close {
+  background: #23242b;
+  color: #e57373;
+  border: none;
+  border-radius: 6px;
+  padding: 0.4rem 1.1rem;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background 0.18s;
+}
+.tg-close:hover {
+  background: #292b33;
 }
 @media (max-width: 768px) {
   .header {
