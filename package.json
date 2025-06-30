@@ -1,7 +1,7 @@
 {
   "name": "notes-bot-server",
   "version": "1.0.0",
-  "description": "Telegram bot for notes with power management",
+  "description": "Telegram bot for notes with power management - Node.js backend only",
   "main": "index.cjs",
   "scripts": {
     "start": "node index.cjs",
@@ -28,7 +28,9 @@
     "telegram",
     "bot",
     "notes",
-    "wake-on-lan"
+    "wake-on-lan",
+    "nodejs",
+    "express"
   ],
   "author": "Your Name",
   "license": "MIT"

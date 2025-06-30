@@ -377,18 +377,12 @@ bot.start(async (ctx) => {
   ctx.session = ctx.session || {};
   await ctx.reply(
     "👋 Привет! Я бот для заметок и управления питанием компьютера.",
-    {
-      reply_markup: {
-        inline_keyboard: [
-          [
-            {
-              text: "🖥️ Открыть WebApp",
-              web_app: { url: "https://notes-vue-app.vercel.app/" },
-            },
-          ],
-        ],
-      },
-    }
+    Markup.inlineKeyboard([
+      [
+        Markup.button.callback("📝 Мои заметки", "show_notes"),
+        Markup.button.callback("🔌 Управление питанием", "power_menu"),
+      ],
+    ])
   );
 
   const notes = await fetchNotes(ctx.from.id);
@@ -423,21 +417,6 @@ bot.action("power_menu", async (ctx) => {
       [Markup.button.callback("🔄 Перезагрузить", "power_restart")],
     ])
   );
-});
-
-bot.command("webapp", (ctx) => {
-  ctx.reply("Откройте современное приложение для заметок:", {
-    reply_markup: {
-      inline_keyboard: [
-        [
-          {
-            text: "🖥️ Открыть WebApp",
-            web_app: { url: "https://notes-vue-app.vercel.app/" },
-          },
-        ],
-      ],
-    },
-  });
 });
 
 // Start both server and bot
