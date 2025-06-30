@@ -1,20 +1,10 @@
-const express = require("express");
-const fs = require("fs");
-const cors = require("cors");
-const bodyParser = require("body-parser");
 const { Telegraf, Markup, session } = require("telegraf");
 require("dotenv").config();
 const axios = require("axios");
-const dgram = require("dgram");
 
-const app = express();
-const PORT = process.env.PORT || 3030;
-const NOTES_FILE = "./notes-data.json";
-const BOT_TOKEN = process.env.BOT_TOKEN;
-const NOTES_API = process.env.NOTES_API || `http://localhost:${PORT}`;
-
-// MAC-адрес вашего домашнего компьютера
-const TARGET_MAC = "60:A4:4C:61:1C:79";
+const BOT_TOKEN =
+  process.env.BOT_TOKEN || "7638357741:AAEPNwwE6cIFXS0_E1ygzAWSrpCIn8MZE9s";
+const NOTES_API = process.env.NOTES_API || "http://localhost:3030";
 
 if (!BOT_TOKEN) {
   console.error("❌ Необходимо указать BOT_TOKEN в .env");
@@ -22,112 +12,6 @@ if (!BOT_TOKEN) {
 }
 
 const bot = new Telegraf(BOT_TOKEN);
-
-// Wake-on-LAN функция
-function wakeOnLan(macAddress) {
-  const client = dgram.createSocket("udp4");
-
-  const mac = macAddress.replace(/:/g, "").toLowerCase();
-  const magicPacket = Buffer.alloc(102);
-
-  for (let i = 0; i < 6; i++) {
-    magicPacket[i] = 0xff;
-  }
-
-  for (let i = 1; i <= 16; i++) {
-    for (let j = 0; j < 6; j++) {
-      magicPacket[i * 6 + j] = parseInt(mac.substr(j * 2, 2), 16);
-    }
-  }
-
-  client.send(
-    magicPacket,
-    0,
-    magicPacket.length,
-    9,
-    "255.255.255.255",
-    (err) => {
-      if (err) {
-        console.log("Ошибка отправки Wake-on-LAN пакета:", err);
-      } else {
-        console.log("Wake-on-LAN пакет отправлен для MAC:", macAddress);
-      }
-      client.close();
-    }
-  );
-}
-
-// Express middleware
-app.use(cors());
-app.use(bodyParser.json());
-
-// Загружаем заметки из файла
-function loadNotes() {
-  if (!fs.existsSync(NOTES_FILE)) return {};
-  try {
-    return JSON.parse(fs.readFileSync(NOTES_FILE, "utf-8"));
-  } catch {
-    return {};
-  }
-}
-
-// Сохраняем заметки в файл
-function saveNotes(data) {
-  fs.writeFileSync(NOTES_FILE, JSON.stringify(data, null, 2), "utf-8");
-}
-
-// API endpoints
-app.get("/notes", (req, res) => {
-  const userId = req.query.userId;
-  if (!userId) return res.status(400).json({ error: "userId required" });
-  const notes = loadNotes();
-  res.json(notes[userId] || []);
-});
-
-app.post("/notes", (req, res) => {
-  const { userId, title, content } = req.body;
-  if (!userId || !title)
-    return res.status(400).json({ error: "userId and title required" });
-  const notes = loadNotes();
-  const newNote = {
-    id: String(Date.now()),
-    title,
-    content: content || "",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
-  notes[userId] = notes[userId] || [];
-  notes[userId].unshift(newNote);
-  saveNotes(notes);
-  res.json(newNote);
-});
-
-app.put("/notes/:id", (req, res) => {
-  const { userId, title, content } = req.body;
-  const noteId = req.params.id;
-  if (!userId || !noteId)
-    return res.status(400).json({ error: "userId and noteId required" });
-  const notes = loadNotes();
-  const userNotes = notes[userId] || [];
-  const note = userNotes.find((n) => n.id === noteId);
-  if (!note) return res.status(404).json({ error: "Note not found" });
-  if (title !== undefined) note.title = title;
-  if (content !== undefined) note.content = content;
-  note.updatedAt = new Date().toISOString();
-  saveNotes(notes);
-  res.json(note);
-});
-
-app.delete("/notes/:id", (req, res) => {
-  const userId = req.query.userId;
-  const noteId = req.params.id;
-  if (!userId || !noteId)
-    return res.status(400).json({ error: "userId and noteId required" });
-  const notes = loadNotes();
-  notes[userId] = (notes[userId] || []).filter((n) => n.id !== noteId);
-  saveNotes(notes);
-  res.json({ success: true });
-});
 
 // Bot functions
 async function fetchNotes(userId) {
@@ -181,41 +65,6 @@ bot.command("notes", async (ctx) => {
   await ctx.reply(
     notes.length ? "Ваши заметки:" : "У вас пока нет заметок.",
     Markup.inlineKeyboard(buttons)
-  );
-});
-
-// Power management commands
-bot.command("power", async (ctx) => {
-  await ctx.reply(
-    "🔌 Управление питанием компьютера:",
-    Markup.inlineKeyboard([
-      [
-        Markup.button.callback("🟢 Включить", "power_on"),
-        Markup.button.callback("🔴 Выключить", "power_off"),
-      ],
-      [Markup.button.callback("🔄 Перезагрузить", "power_restart")],
-    ])
-  );
-});
-
-// Power management actions
-bot.action("power_on", async (ctx) => {
-  await ctx.answerCbQuery("Отправляю команду включения...");
-  wakeOnLan(TARGET_MAC);
-  await ctx.reply("✅ Команда включения отправлена на компьютер!");
-});
-
-bot.action("power_off", async (ctx) => {
-  await ctx.answerCbQuery("Команда выключения будет выполнена через заметку");
-  await ctx.reply(
-    "📝 Создайте заметку с заголовком 'windows' и текстом 'выключить' для выключения компьютера."
-  );
-});
-
-bot.action("power_restart", async (ctx) => {
-  await ctx.answerCbQuery("Команда перезагрузки будет выполнена через заметку");
-  await ctx.reply(
-    "📝 Создайте заметку с заголовком 'windows' и текстом 'перезагрузить' для перезагрузки компьютера."
   );
 });
 
@@ -376,12 +225,9 @@ bot.command("search", async (ctx) => {
 bot.start(async (ctx) => {
   ctx.session = ctx.session || {};
   await ctx.reply(
-    "👋 Привет! Я бот для заметок и управления питанием компьютера.",
+    "👋 Привет! Я локальная версия бота для заметок.",
     Markup.inlineKeyboard([
-      [
-        Markup.button.callback("📝 Мои заметки", "show_notes"),
-        Markup.button.callback("🔌 Управление питанием", "power_menu"),
-      ],
+      [Markup.button.callback("📝 Мои заметки", "show_notes")],
     ])
   );
 
@@ -398,7 +244,6 @@ bot.start(async (ctx) => {
   buttons.push([
     Markup.button.callback("➕ Создать новую", "create_note"),
     Markup.button.callback("🔍 Поиск", "search_notes"),
-    Markup.button.callback("🔌 Управление питанием", "power_menu"),
   ]);
   await ctx.reply(
     notes.length ? "Ваши заметки:" : "У вас пока нет заметок.",
@@ -406,48 +251,11 @@ bot.start(async (ctx) => {
   );
 });
 
-bot.action("power_menu", async (ctx) => {
-  await ctx.reply(
-    "🔌 Управление питанием компьютера:",
-    Markup.inlineKeyboard([
-      [
-        Markup.button.callback("🟢 Включить", "power_on"),
-        Markup.button.callback("🔴 Выключить", "power_off"),
-      ],
-      [Markup.button.callback("🔄 Перезагрузить", "power_restart")],
-    ])
-  );
+// Запуск бота
+bot.launch().then(() => {
+  console.log("🤖 Локальный бот для заметок запущен!");
+  console.log("📝 Доступен только для работы с заметками");
 });
-
-// Start both server and bot
-app.listen(PORT, () => {
-  console.log(`🗒️ Notes API server running on http://localhost:${PORT}`);
-});
-
-// Функция для запуска бота с обработкой ошибок
-async function startBot() {
-  try {
-    await bot.launch();
-    console.log("🤖 Бот для заметок запущен!");
-    console.log("🔌 Управление питанием доступно через команду /power");
-  } catch (error) {
-    if (error.response && error.response.error_code === 409) {
-      console.log("⚠️ Обнаружен конфликт: другой экземпляр бота уже запущен");
-      console.log("🔄 Ожидание 10 секунд перед повторной попыткой...");
-
-      setTimeout(() => {
-        console.log("🔄 Повторная попытка запуска бота...");
-        startBot();
-      }, 10000);
-    } else {
-      console.error("❌ Ошибка запуска бота:", error.message);
-      process.exit(1);
-    }
-  }
-}
-
-// Запускаем бота
-startBot();
 
 process.once("SIGINT", () => bot.stop("SIGINT"));
 process.once("SIGTERM", () => bot.stop("SIGTERM"));

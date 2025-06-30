@@ -7,7 +7,8 @@
     "start": "node index.cjs",
     "bot": "node bot.cjs",
     "server": "node server.cjs",
-    "dev": "concurrently \"npm run server\" \"npm run bot\"",
+    "local": "node local-bot.cjs",
+    "dev": "concurrently \"npm run server\" \"npm run local\"",
     "deploy": "npm run start"
   },
   "dependencies": {
